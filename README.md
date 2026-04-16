@@ -346,3 +346,12 @@ sdn-path-tracer/
 
 ---
 
+# References
+ 
+1. Lantz, B., Heller, B., & McKeown, N. (2010). *A Network in a Laptop: Rapid Prototyping for Software-Defined Networks.* HotNets-IX. https://dl.acm.org/doi/10.1145/1868447.1868466
+2. POX Documentation — https://noxrepo.github.io/pox-doc/html/
+3. OpenFlow Switch Specification v1.0 — https://opennetworking.org/wp-content/uploads/2013/04/openflow-spec-v1.0.0.pdf
+4. Mininet Documentation — http://mininet.org/
+5. Open vSwitch Documentation — https://www.openvswitch.org/
+6. Feamster, N., Rexford, J., & Zegura, E. (2014). *The Road to SDN.* ACM Queue. https://dl.acm.org/doi/10.1145/2602204.2602219
+ 

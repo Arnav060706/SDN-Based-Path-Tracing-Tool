@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+File: path_tracer.py
+Description: Implements the SDN controller logic for tracing
+             packet paths across the network. Uses flow rules
+             and packet inspection to determine routing paths.
+
 SDN Path Tracing Tool - POX Controller
 =======================================
 Tracks and displays the exact path taken by packets through the SDN network.
