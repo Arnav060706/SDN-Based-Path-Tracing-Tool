@@ -356,69 +356,71 @@ class PathTracerController(EventMixin):
     # ── Packet processing ─────────────────────────────────────────────────────
 
     def _handle_PacketIn(self, event):
-        """
-        Core logic: called every time the controller receives a packet.
+    packet = event.parsed
+    if not packet.parsed:
+        return
 
-        Step-by-step:
-          1. Ignore LLDP probes (they belong to the discovery module)
-          2. Learn the source host's location (MAC -> switch+port)
-          3. Flood broadcasts/ARP (destination MAC is FF:FF:FF:FF:FF:FF)
-          4. Flood if destination host is still unknown
-          5. BFS to compute the shortest path
-          6. Install flow rules along that path + forward the buffered packet
-        """
-        packet   = event.parsed
-        if not packet.parsed:
-            log.warning("Incomplete packet, ignoring")
+    dpid    = event.dpid
+    in_port = event.port
+    src_mac = packet.src
+    dst_mac = packet.dst
+
+    # 🔹 Ignore LLDP (discovery traffic)
+    if packet.type == ethernet.LLDP_TYPE:
+        return
+
+    # 🔹 Ignore noisy DNS packets (fixes your error)
+    try:
+        if packet.find('dns'):
             return
+    except:
+        pass
 
-        dpid     = event.dpid
-        in_port  = event.port
-        src_mac  = packet.src
-        dst_mac  = packet.dst
+    # 🔹 Learn host location
+    if is_host_port(dpid, in_port):
+        if src_mac not in host_locations:
+            host_locations[src_mac] = (dpid, in_port)
+            log.info("[HOST] %s -> %s:%d" % (
+                src_mac, dpid_to_str(dpid), in_port))
 
-        # ── Step 1: Skip LLDP ─────────────────────────────────────────────────
-        # LLDP packets are internal to the discovery mechanism; don't forward them
-        if packet.type == ethernet.LLDP_TYPE:
-            return
+    # 🔹 Broadcast handling
+    if dst_mac.is_broadcast or dst_mac.is_multicast:
+        flood_packet(event)
+        return
 
-        # ── Step 2: Learn source host location ───────────────────────────────
-        # Only record hosts on HOST-facing ports (skip switch-to-switch ports)
-        if is_host_port(dpid, in_port):
-            if src_mac not in host_locations:
-                host_locations[src_mac] = (dpid, in_port)
-                log.info("[HOST] Learned: %s at switch %s port %d" % (
-                    src_mac, dpid_to_str(dpid), in_port))
+    # 🔹 Unknown destination → flood
+    if dst_mac not in host_locations:
+        flood_packet(event)
+        return
 
-        # ── Step 3: Broadcast / multicast (ARP requests go here) ─────────────
-        # We must flood ARP so hosts can discover each other's MAC addresses
-        if dst_mac.is_broadcast or dst_mac.is_multicast:
-            flood_packet(event, "Broadcast from %s" % src_mac)
-            return
+    # 🔹 Get source + destination switches
+    src_info = host_locations.get(src_mac)
+    if src_info is None:
+        flood_packet(event)
+        return
 
-        # ── Step 4: Unknown destination ───────────────────────────────────────
-        if dst_mac not in host_locations:
-            flood_packet(event, "Dest %s unknown, flooding" % dst_mac)
-            return
+    src_dpid    = src_info[0]
+    dst_dpid, _ = host_locations[dst_mac]
 
-        # ── Step 5: Compute BFS path ──────────────────────────────────────────
-        src_info = host_locations.get(src_mac)
-        if src_info is None:
-            flood_packet(event, "Source location unknown, flooding")
-            return
+    # 🔹 Compute path
+    path = bfs_shortest_path(src_dpid, dst_dpid)
 
-        src_dpid         = src_info[0]
-        dst_dpid, _      = host_locations[dst_mac]
+    if path is None:
+        flood_packet(event)
+        return
 
-        path = bfs_shortest_path(src_dpid, dst_dpid)
+    # 🔥 CLEAR PATH OUTPUT (highlighted)
+    path_str = " -> ".join([dpid_to_str(d) for d in path])
+    log.info("")
+    log.info("========== PATH TRACED ==========")
+    log.info("SRC: %s" % src_mac)
+    log.info("DST: %s" % dst_mac)
+    log.info("PATH: %s" % path_str)
+    log.info("=================================")
+    log.info("")
 
-        if path is None:
-            log.warning("[PATH] No route found -- flooding as last resort")
-            flood_packet(event)
-            return
-
-        # ── Step 6: Install flows + forward first packet ──────────────────────
-        install_flow_rules(path, src_mac, dst_mac, event)
+    # 🔹 Install flows
+    install_flow_rules(path, src_mac, dst_mac, event)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
