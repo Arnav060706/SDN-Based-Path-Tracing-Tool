@@ -49,8 +49,7 @@ Two redundant paths between s1 and s4 enable path-tracing and link-failure demon
 ## Design Choices & Justification
 
 ### Why POX?
-POX is a Python-based OpenFlow controller that is lightweight, well-documented, and includes a built-in `openflow.discovery` component that uses LLDP to automatically discover inter-switch links. This removes the need to hardcode the topology inside the controller — the controller learns it dynamically.
-
+POX is a Python-based OpenFlow controller that is lightweight, well-documented and is easy to use because it is written in Python and is lightweight. It also automatically detects how switches are connected, so we don’t need to manually define the network topology.
 ### Why a Diamond Topology?
 A linear topology has only one path, making path tracing uninteresting. A diamond gives two equal-length paths, allowing:
 1. Verification that BFS selects a consistent path (Path A by default)
@@ -119,7 +118,7 @@ Wait until you see:
 ```
 [*] PathTracerController ready
 ```
-
+If this does not work or any error is faced, run sudo pkill -f pox and then run the file again.
 ### Step 4 — Start Mininet (Terminal B)
 
 ```bash
@@ -127,7 +126,7 @@ bash run_topology.sh
 ```
 
 This opens the Mininet interactive CLI. You should see all 4 switches connect in Terminal A.
-
+Note: If any errors faced during this step, ensure you run sudo mn -c to ensure cleanup and proceed.
 ### Step 5 — Run Basic Test (inside Mininet CLI)
 
 ```
