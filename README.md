@@ -281,12 +281,121 @@ The `n_packets` counter on each flow rule confirms traffic is following the inst
 
 ---
 
-## SDN Logic — Controller Behaviour Explained
+# SDN Controller Behaviour Explained
 
-### Controller Startup
-1. POX loads `openflow.discovery` which starts sending LLDP probes out every switch port
-2. `path_tracer.py` listens for `LinkEvent` from the discovery module
-3. As LLDP probes travel between switches, `LinkEvent`s fire and the adjacency map is populated
+## 1. Controller Startup (Topology Discovery)
+
+When the SDN controller starts, it first needs to understand the network structure.
+
+- The controller loads the `openflow.discovery` module
+- This module sends **LLDP (Link Layer Discovery Protocol)** packets out of every switch port
+- These packets travel between switches and help identify connections
+- The controller listens for `LinkEvent`s generated from these packets
+- Using this information, it builds a **complete topology map** of the network
+
+### What is LLDP?
+
+**LLDP (Link Layer Discovery Protocol)** is a network protocol used by devices to advertise their identity and discover their neighbors.
+
+- It operates at **Layer 2 (Data Link Layer)**
+- Each switch sends LLDP packets out of its ports
+- Neighboring switches receive these packets and report back to the controller
+- This allows the controller to learn:
+  - Which switches are connected
+  - Through which ports they are connected
+
+> In simple terms: LLDP helps the controller "see" the network.
+
+---
+
+## 2. Packet Processing (packet_in Handling)
+
+When a packet arrives at a switch and no matching rule exists, it is sent to the controller for processing.
+
+### Step-by-step process:
+
+### Step 1: Packet arrives
+- A new packet reaches a switch
+- If no rule exists, it is forwarded to the controller
+
+---
+
+### Step 2: Check if LLDP packet
+- If the packet is an LLDP packet → **Ignore it** (used only for discovery)
+- Otherwise → Continue processing
+
+---
+
+### Step 3: Learn source host
+- The controller records:
+  - Source MAC address
+  - Switch ID
+  - Port number
+
+> This helps the controller know where each host is located
+
+---
+
+### Step 4: Check if destination is broadcast
+- If **broadcast (e.g., ARP request)**:
+  - Flood the packet to all switches
+- Otherwise → Continue
+
+---
+
+### Step 5: Check if destination is known
+- If destination is **unknown**:
+  - Flood the packet
+  - The controller will learn when a reply comes back
+- If destination is **known**:
+  - Proceed to path computation
+
+---
+
+### Step 6: Compute shortest path
+- The controller uses **BFS (Breadth-First Search)** to find:
+  - Shortest path from source switch to destination switch
+
+---
+
+### Step 7: Install flow rules
+- Flow rules are installed in **every switch along the path**
+- These rules define how future packets should be forwarded
+
+> This avoids sending every packet to the controller
+
+---
+
+### Step 8: Log the path
+- The computed path is:
+  - Printed to the controller terminal
+  - Stored in a file:
+    ```
+    /tmp/sdn_paths.json
+    ```
+
+---
+
+### Step 9: Forward the packet
+- The original packet is forwarded along the computed path
+- Future packets follow installed rules directly (no controller needed)
+
+---
+
+## Summary
+
+The SDN controller:
+1. Discovers the network using LLDP
+2. Learns host locations dynamically
+3. Computes shortest paths using BFS
+4. Installs flow rules in switches
+5. Optimizes traffic by avoiding unnecessary controller involvement
+
+---
+
+## One-Line Explanation
+
+> The controller builds a network map, learns host locations, computes the best path for packets, installs forwarding rules, and allows switches to handle future traffic efficiently.
 
 ### Packet Processing (packet_in)
 ```
